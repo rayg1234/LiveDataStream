@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<style> /* set the CSS */
+
+body { font: 12px Arial;}
+
+.crossline{
+ stroke: black;
+}
+
+.text1 {
+ stroke: black;
+ "font-size", "20px"
+}
+
+.invisrect{
+	fill: black;
+	fill-opacity: 0;
+}
+
+.greyrect{
+	fill: black;
+	fill-opacity: 0.9;
+}
+
+
+.area {
+  stroke: #000;
+  stroke-width: 1;
+  fill: steelblue;
+  clip-path: url(#clip);
+}
+
+.area_3 {
+  stroke: #000;
+  stroke-width: 1;
+  fill: #006600;
+  clip-path: url(#clip2);
+}
+
+.area_4 {
+  stroke: #000;
+  stroke-width: 1;
+  fill:  #330033;
+  clip-path: url(#clip2);
+  fill-opacity: 0.8;
+}
+
+.area_5 {
+  stroke: #000;
+  stroke-width: 1;
+  fill:  firebrick;
+  clip-path: url(#clip);
+  fill-opacity: 0.5;
+}
+
+.area_6 {
+  stroke: #000;
+  stroke-width: 1;
+  fill: #CC6600;
+  clip-path: url(#clip2);
+  fill-opacity: 0.6;
+}
+
+.area_7 {
+  stroke: #000;
+  stroke-width: 1;
+  fill: #006600;
+  clip-path: url(#clip);
+  fill-opacity: 0.6;
+}
+
+path { 
+	stroke: steelblue;
+	stroke-width: 1;
+	fill: none;
+}
+
+.axis path,
+.axis line {
+	fill: none;
+	stroke: #000;
+	stroke-width: 1;
+	shape-rendering: crispEdges;
+}
+
+.brush .extent {
+  stroke: #fff;
+  fill-opacity: .225;
+  shape-rendering: crispEdges;
+}
+
+
+</style>
+<body>
+
+<script src="http://d3js.org/d3.v3.min.js"></script>	<!-- load the d3.js library -->	
+
+<script>
+var max_elements = 10000; //max number of data elements to keep in memory
+var max_elements_disp = 250;
+
+var bisectDate = d3.bisector(function(d) { return d.time; }).left;
+
+var currentdata;
+
+var cur_bindata;
+
+// Set the dimensions of the canvas / graph
+var	margin = {top: 10, right: 40, bottom: 345, left: 40},		//top panel
+	margin3 = {top: 230, right: 500, bottom: 130, left: 40},	// middle pane 1 (left)
+	margin4 = {top: 230, right: 40, bottom: 130, left: 500},	// middle pane 2 (right)
+	margin2 = {top: 460, right: 40, bottom: 40, left: 40},		// the context panel
+	
+	width = 960 - margin.left - margin.right,				//overall width
+	width34 = 960 - margin3.left - margin3.right,			//middle pane width
+			
+	height = 550 - margin.top - margin.bottom,
+	height2 = 550 - margin2.top - margin2.bottom,
+	height3 = 550 - margin3.top - margin3.bottom,
+	height4 = 550 - margin3.top - margin3.bottom;
+
+
+// Parse the date / time
+var	parseDate = d3.time.format("%Y-%m-%d %H:%M:%S").parse;
+var	formater = d3.time.format("%Y-%m-%d:%H:%M:%S")
+var	formater2 = d3.time.format("%Y-%m-%d %H:%M:%S")	
+
+// Set the ranges
+var	x = d3.time.scale().range([0, width]),				//x: top panel
+	x2 = d3.time.scale().range([0, width]),				//x2: context panel
+	x3 = d3.time.scale().range([0, width34]),				//x3: middle pane 1	(left)
+	x4 = d3.time.scale().range([0, width34]),				//x4: middle pane 2 (right)
+
+	y = d3.scale.linear().range([height, 0]),				//y: top panel - accelerator voltage
+	y2 = d3.scale.linear().range([height2, 0]),			//y2: context panel - accelerator voltage
+	y3 = d3.scale.linear().range([height3, 0]),			//y3: middle pane 1 - RF cavity temp
+	y4 = d3.scale.linear().range([height4, 0]),			//y4: middle pane 2 - laser intensity
+	y5 = d3.scale.linear().range([height, 0]);			//y5: top panel - accelerator current
+	y6 = d3.scale.linear().range([height4, 0]);			//y6: middle pane 2 - laser snr
+	y7 = d3.scale.linear().range([height2, 0]);			//y7: context panel - RF cavity temp
+
+// Define the axes
+var	xAxis = d3.svg.axis().scale(x).orient("bottom"),	
+	xAxis2 = d3.svg.axis().scale(x2).orient("bottom"),
+	
+	xAxis3 = d3.svg.axis().scale(x3).orient("bottom").ticks(5),
+	xAxis4 = d3.svg.axis().scale(x4).orient("bottom").ticks(5);
+
+var	yAxis = d3.svg.axis().scale(y)
+	.orient("left").ticks(10);
+	yAxis3 = d3.svg.axis().scale(y3)							
+	.orient("left").ticks(10);
+	yAxis4 = d3.svg.axis().scale(y4)							
+	.orient("left").ticks(10);
+	yAxis5 = d3.svg.axis().scale(y5)							
+	.orient("right").ticks(10);
+	yAxis6 = d3.svg.axis().scale(y6)							
+	.orient("right").ticks(10);				
+
+//define areas plots for y,y2,y3,y6
+var area = d3.svg.area()
+    .interpolate("montone")
+    .x(function(d) { return x(d.time); })
+    .y0(height)
+    .y1(function(d) { return y(d.voltval); });
+
+
+var area2 = d3.svg.area()
+    .interpolate("montone")
+    .x(function(d) { return x2(d.time); })
+    .y0(height2)
+    .y1(function(d) { return y2(d.voltval); });
+
+var area3 = d3.svg.area()
+    .interpolate("montone")
+    .x(function(d) { return x3(d.time); })
+    .y0(height3)
+    .y1(function(d) { return y3(d.temp1); });
+
+var area4 = d3.svg.area()
+    .interpolate("montone")
+    .x(function(d) { return x4(d.time); })
+    .y0(height4)
+    .y1(function(d) { return y4(d.laserint); });
+
+var area5 = d3.svg.area()
+    .interpolate("montone")
+    .x(function(d) { return x(d.time); })
+    .y0(height)
+    .y1(function(d) { return y5(d.currentval); });
+
+var area6 = d3.svg.area()
+    .interpolate("montone")
+    .x(function(d) { return x4(d.time); })
+    .y0(height4)
+    .y1(function(d) { return y6(d.lasersn); });
+
+var area7 = d3.svg.area()
+    .interpolate("montone")
+    .x(function(d) { return x2(d.time); })
+    .y0(height2)
+    .y1(function(d) { return y7(d.temp1); });
+
+//create svg
+var	svg = d3.select("body")									
+	.append("svg")
+		.attr("width", width + margin.left + margin.right)
+		.attr("height", height + margin.top + margin.bottom)
+  
+
+//create context brush
+var brush = d3.svg.brush()
+    .x(x2)
+	//.y(y2)
+    .on("brushend", brushed);
+
+//define clip boxes for plots
+svg.append("defs").append("clipPath")
+    .attr("id", "clip")
+  .append("rect")
+    .attr("width", width)
+    .attr("height", height);
+
+svg.append("defs").append("clipPath")
+    .attr("id", "clip2")
+  .append("rect")
+    .attr("width", width34)
+    .attr("height", height);
+
+//create groups of plots
+var focus = svg.append("g")
+		.attr("class", "focus")
+		.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+		
+
+var focus3 = svg.append("g")
+		.attr("class", "focus3")
+		.attr("transform", "translate(" + margin3.left + "," + margin3.top + ")");
+var focus4 = svg.append("g")
+		.attr("class", "focus4")
+		.attr("transform", "translate(" + margin4.left + "," + margin4.top + ")");
+
+var context = svg.append("g")
+    .attr("class", "context")
+    .attr("transform", "translate(" + margin2.left + "," + margin2.top + ")");
+
+//the helpbox button and text
+var helpbox = svg.append("g").attr("transform", "translate(" + 530 + "," + 210 + ")").style("opacity",0).style("display","none");
+
+helpbox.append("rect").attr("class","greyrect")
+	   .attr({
+            "x": 0,
+              "y": -105,
+              "width": 400,
+              "height": 390 
+            })
+
+helpbox.append('foreignObject')
+                    .attr('x', 0)
+                    .attr('y', -100)
+                    .attr('width', 400)
+                    .attr('height', 390)
+                    .append("xhtml:body")
+                    .html('<div style="width: 360 px;"><font size="3" face="verdana" color="white">\
+Live Data Stream\
+<br>Author: Ray Gao\
+<p><font size="2">This tool streams critical experimental parameters straight from the lab in Toronto (GMT -5 hours). During a long automated experiment, monitoring of critical infrastructure performance is vital to both the analysis of the data and the safety of the users. A C++ server interfaces with a DAQ (Data Acquisition) source \
+to give access to this data. A Python script queries the DAQ server for new data every 10 seconds to 5 minutes depending on the level of activity and stores it into a MySQL server on this web domain. \
+This D3.js app then retrieves a recent portion of this data from the MySQL server using a PHP script on a regular interval to give a live user feed. Use the interactive "Zoom Context" bar to change the interval of the viewing window.\
+<p>Update: Data is now automatically re-binned when the zoom context is changed to reduce cluttering and memory usuage.\
+</p></font></font></div>')
+
+// Get the initial data from sql server
+d3.json("getdata_lim.php?lim=" + max_elements, function(error, data) {			//get data from mysql server
+	data = data.reverse()
+	data.forEach(function(d) {					
+		d.time = parseDate(d.time);			
+		d.voltval = -+d.voltval;				
+		d.temp1 = +d.temp1;
+		d.currentval = +d.currentval*10;
+		d.laserint = +d.laserint;
+		d.lasersn = +d.lasersn;
+	});
+
+	currentdata = data;
+	var binned_data = binData(currentdata,max_elements_disp,0,Infinity);
+	cur_bindata = binned_data;
+
+	//dataUpdate(data);
+	
+			// Scale the range of the data
+	x.domain(d3.extent(binned_data, function(d) { return d.time; }));
+	y.domain([0,105]);
+	x2.domain(x.domain());
+	y2.domain(y.domain());
+
+	x3.domain(x.domain());
+	y3.domain([d3.min(data, function(d) { return d.temp1; }) - 1, d3.max(binned_data, function(d) { return d.temp1; }) + 1]);
+
+	x4.domain(x.domain());
+	//y4.domain([0,2.0]);
+	y4.domain([d3.min(binned_data, function(d) { return d.laserint; }), d3.max(binned_data, function(d) { return d.laserint; }) + 0.4]);
+	
+	y5.domain([-0.6,2]);
+	y6.domain([0,750]);
+	y7.domain(y3.domain());
+	
+
+	//calculate area paths
+	focus.append("path")
+		.datum(binned_data)
+		.attr("class", "area")
+		.attr("d", area)
+
+	focus.append("path")
+		.datum(binned_data)
+		.attr("class", "area_5")
+		.attr("d", area5(binned_data));
+
+	context.append("path")
+		.datum(binned_data)
+		.attr("class", "area")
+		.attr("d", area2);	
+
+	focus3.append("path")
+		.datum(binned_data)
+		.attr("class", "area_3")
+		.attr("d", area3);	
+
+	focus4.append("path")
+		.datum(binned_data)
+		.attr("class", "area_4")
+		.attr("d", area4);
+
+	focus4.append("path")
+		.datum(binned_data)
+		.attr("class", "area_6")
+		.attr("d", area6);	
+
+	context.append("path")
+		.datum(binned_data)
+		.attr("class", "area_7")
+		.attr("d", area7);	
+
+	// Add the X Axis
+	focus.append("g")								
+		.attr("class", "x axis")					
+		.attr("transform", "translate(0," + height + ")")	
+		.call(xAxis);	
+	
+	focus3.append("g")											
+		.attr("class", "x axis")	
+		.attr("transform", "translate(0," + height3 + ")")
+		.call(xAxis3);
+	
+	focus4.append("g")											
+		.attr("class", "x axis")	
+		.attr("transform", "translate(0," + height4 + ")")
+		.call(xAxis4);
+
+	context.append("g")
+      		.attr("class", "x axis")
+      		.attr("transform", "translate(0," + height2 + ")")
+      		.call(xAxis2);
+
+	// Add the Y Axis
+	focus.append("g")											
+		.attr("class", "y axis")
+		.attr("transform", "translate(0,0)")						
+		.call(yAxis);								
+
+	focus3.append("g")											
+		.attr("class", "y axis")
+		.attr("transform", "translate(0,0)")	
+		.call(yAxis3);
+
+	focus4.append("g")											
+		.attr("class", "y axis")	
+		.call(yAxis4);
+	
+	focus.append("g")
+		.attr("class", "y axis")
+		.attr("transform", "translate(" + width + ",0)")
+		.call(yAxis5);
+
+	focus4.append("g")
+		.attr("class", "y axis")
+		.attr("transform", "translate(" + width34 + ",0)")
+		.call(yAxis6);		
+
+	context.append("g")
+      		.attr("class", "x brush")
+      		.call(brush)
+    	    .selectAll("rect")
+      		.attr("y", -2)
+      		.attr("height", height2 + 3);
+	
+	//add the labels
+	focus.append("text").attr("id","text1").attr("x", 10).attr("y", 13).text("Accelerator Voltage (kV)").attr("font-size", "15px").attr("stroke", "steelblue");
+	focus.append("text").attr("id","text2").attr("x", width-205).attr("y", 13).text("Accelerator Current (uA)").attr("font-size", "15px").attr("stroke", "firebrick");
+	focus3.append("text").attr("id","text3").attr("x", 10).attr("y", 13).text("RF Buncher Temp. (C)").attr("font-size", "15px").attr("stroke", "#006600");
+	focus4.append("text").attr("id","text4").attr("x", 10).attr("y", 13).text("Laser Intensity (V)").attr("font-size", "15px").attr("stroke", "#330033");
+	focus4.append("text").attr("id","text5").attr("x", width34-110).attr("y", 13).text("Laser SNR").attr("font-size", "15px").attr("stroke", "#CC6600");
+
+	//var curlen = Object.keys(binned_data).length;
+	var curlen = currentdata.length
+	var lastdate = formater2(currentdata[curlen-1].time);
+
+	focus.append("text").attr("class", "text1").attr("x", 325).attr("y", 13).text("Last Time Point: " + lastdate + " EST");
+	context.append("text").attr("class", "text1").attr("x", 5).attr("y", -3).text("Zoom Context");
+
+	//add the cursor lines
+	focus.append("line").attr("id","vertcross1").attr("class","crossline")
+            .attr({
+              "x1": 0,
+              "y1": 20,
+              "x2": 0,
+              "y2": height
+            });
+
+	focus3.append("line").attr("id","vertcross3").attr("class","crossline")
+            .attr({
+              "x1": 0,
+              "y1": 20,
+              "x2": 0,
+              "y2": height3
+            });
+
+	focus4.append("line").attr("id","vertcross4").attr("class","crossline")
+            .attr({
+              "x1": 0,
+              "y1": 20,
+              "x2": 0,
+              "y2": height4
+            });
+
+	//define the regions to interact with cursors
+	focus.append("rect").attr("class","invisrect")
+            .attr({
+              "x": 0,
+              "y": 0,
+              "width": width,
+              "height": height 
+            })
+		.on("mousemove", function(d) {
+			//console.log(x.invert(d3.mouse(this)[0]))
+			//console.log(y(x.invert(d3.mouse(this)[0])))
+			var x0 = x.invert(d3.mouse(this)[0]);
+			var i = bisectDate(cur_bindata,x0);
+			d0 = cur_bindata[i];
+			//console.log(d0.voltval)
+			focus.select("#text1").text("Accelerator Voltage (kV): " + Math.round(d0.voltval*100)/100);
+			focus.select("#text2").text("Accelerator Current (uA): " + Math.round(d0.currentval*100)/100);
+			focus3.select("#text3").text("RF Buncher Temp. (C): " + Math.round(d0.temp1*100)/100);
+			focus4.select("#text4").text("Laser Intensity (V): " + Math.round(d0.laserint*100)/100);
+			focus4.select("#text5").text("Laser SNR: " + Math.round(d0.lasersn));
+			
+			focus.select("#vertcross1").attr("transform", "translate(" + (d3.mouse(this)[0]) + ", 0)");
+			focus3.select("#vertcross3").attr("transform", "translate(" + (d3.mouse(this)[0])/width * width34 + ", 0)");
+			focus4.select("#vertcross4").attr("transform", "translate(" + (d3.mouse(this)[0])/width * width34 + ", 0)");
+			
+			
+  		});
+
+	focus3.append("rect").attr("class","invisrect")
+            .attr({
+              "x": 0,
+              "y": 0,
+              "width": width34,
+              "height": height3 
+            })
+		.on("mousemove", function(d) {
+			//console.log(x.invert(d3.mouse(this)[0]))
+			//console.log(y(x.invert(d3.mouse(this)[0])))
+			var x0 = x3.invert(d3.mouse(this)[0]);
+			var i = bisectDate(cur_bindata,x0);
+			d0 = cur_bindata[i];
+			//console.log(d0.voltval)
+			focus.select("#text1").text("Accelerator Voltage (kV): " + Math.round(d0.voltval*100)/100);
+			focus.select("#text2").text("Accelerator Current (uA): " + Math.round(d0.currentval*100)/100);
+			focus3.select("#text3").text("RF Buncher Temp. (C): " + Math.round(d0.temp1*100)/100);
+			focus4.select("#text4").text("Laser Intensity (V): " + Math.round(d0.laserint*100)/100);
+			focus4.select("#text5").text("Laser SNR: " + Math.round(d0.lasersn));
+			
+			focus.select("#vertcross1").attr("transform", "translate(" + (d3.mouse(this)[0])/width34*width + ", 0)");
+			focus3.select("#vertcross3").attr("transform", "translate(" + (d3.mouse(this)[0]) + ", 0)");
+			focus4.select("#vertcross4").attr("transform", "translate(" + (d3.mouse(this)[0]) + ", 0)");
+  		});
+
+	focus4.append("rect").attr("class","invisrect")
+            .attr({
+              "x": 0,
+              "y": 0,
+              "width": width34,
+              "height": height4 
+            })
+		.on("mousemove", function(d) {
+			//console.log(x.invert(d3.mouse(this)[0]))
+			//console.log(y(x.invert(d3.mouse(this)[0])))
+			var x0 = x4.invert(d3.mouse(this)[0]);
+			var i = bisectDate(cur_bindata,x0);
+			d0 = cur_bindata[i];
+			//console.log(d0.voltval)
+			focus.select("#text1").text("Accelerator Voltage (kV): " + Math.round(d0.voltval*100)/100);
+			focus.select("#text2").text("Accelerator Current (uA): " + Math.round(d0.currentval*100)/100);
+			focus3.select("#text3").text("RF Buncher Temp. (C): " + Math.round(d0.temp1*100)/100);
+			focus4.select("#text4").text("Laser Intensity (V): " + Math.round(d0.laserint*100)/100);
+			focus4.select("#text5").text("Laser SNR: " + Math.round(d0.lasersn));
+			
+			focus.select("#vertcross1").attr("transform", "translate(" + (d3.mouse(this)[0])/width34*width + ", 0)");
+			focus3.select("#vertcross3").attr("transform", "translate(" + (d3.mouse(this)[0]) + ", 0)");
+			focus4.select("#vertcross4").attr("transform", "translate(" + (d3.mouse(this)[0]) + ", 0)");
+  		});
+
+	context.append("text").attr("class", "text1").attr("x", 900).attr("y", 35).text("?").attr("font-size", "20px");
+	context.append("circle").attr("cx",905).attr("cy",28).attr("r",15).style("fill", "#339933").style("opacity",0.4)
+		.on("mouseover", function(d) {
+			helpbox.style("display","block")
+			helpbox.transition().duration(300).style("opacity",1)
+		})
+		.on("mouseout", function(d) {
+			helpbox.transition().duration(300).style("opacity",0)
+			helpbox.style("display","none")
+		});
+	
+
+});
+
+function binData(data,nbin,startbintime,endbintime)
+{
+		var curlen = Object.keys(data).length;
+		var newarr = [];
+		var startime;
+		var endtime;
+		if(startbintime > 0) {
+			startime = startbintime;
+		} else {
+			startime = data[0].time;
+		}
+		if(endbintime < Infinity) {
+			endtime = endbintime;
+		} else {
+			endtime = data[curlen-1].time;
+		}
+		
+		var stepsize = (endtime - startime) / nbin
+		//console.log( startime );
+		//console.log( new Date(startime.getTime() + stepsize));
+		
+		//console.log(endtime - startime);
+		//create array of nbins and fill it with data
+		var d_ind = 0;
+		//find the start index
+		for(;d_ind<curlen;d_ind++) {
+			if(data[d_ind].time >= startbintime)
+			{
+				break;
+			}
+			else{
+				continue;
+			}
+		}
+
+		for (var i=0; i<nbin && d_ind<curlen; i++)
+		{ 
+			var curbin_timestart = startime.getTime() + stepsize*i;
+			var curbin_timend = startime.getTime() + stepsize*(i+1);
+			var curbin_temp = 0;
+			var curbin_voltval = 0;
+			var curbin_currentval = 0;
+			var curbin_laserint = 0;
+			var curbin_lasersn = 0;
+			var bincount = 0;
+			for(;d_ind<curlen;d_ind++) 
+			{
+				//fits into the current bin?
+				//console.log(d_ind)
+				//console.log("curtime: " + data[d_ind].time)
+				//console.log("comptime: " + endbintime)
+				if( (data[d_ind].time > startbintime) && (data[d_ind].time >= curbin_timestart) && (data[d_ind].time < curbin_timend) && (data[d_ind].time < endbintime) )
+				{
+					curbin_temp = curbin_temp + data[d_ind].temp1;
+					curbin_voltval = curbin_voltval + data[d_ind].voltval;
+					curbin_currentval = curbin_currentval + data[d_ind].currentval;
+					curbin_laserint = curbin_laserint + data[d_ind].laserint;
+					curbin_lasersn = curbin_lasersn + data[d_ind].lasersn;
+					bincount++;
+				} else {
+					break;
+				}
+				
+			}
+
+			if(bincount>0) 
+			{
+				curbin_temp = curbin_temp/bincount;
+				curbin_voltval = curbin_voltval/bincount;
+				curbin_currentval = curbin_currentval/bincount;
+				curbin_laserint = curbin_laserint/bincount;
+				curbin_lasersn = curbin_lasersn/bincount;
+				newarr.push({time: new Date(curbin_timend), temp1: curbin_temp, voltval: curbin_voltval,  currentval: curbin_currentval, laserint: curbin_laserint, lasersn: curbin_lasersn}); 
+			}
+			
+		}
+		return newarr;
+
+
+}
+//function for updating when new data arrives
+function dataUpdate(data)
+{
+	var binned_data = binData(data,max_elements_disp,0,Infinity);
+	cur_bindata = binned_data;
+
+	x2.domain(d3.extent(binned_data, function(d) { return d.time; }));
+	context.select(".area").attr("d", area2(binned_data));
+	context.select(".area_7").attr("d", area7(binned_data));
+	context.select(".x.axis").call(xAxis2);
+	
+	var curlen = currentdata.length;
+	var lastdate = formater2(currentdata[curlen-1].time);
+
+	focus.select(".text1").text("Last Time Point: " + lastdate + " EST");
+	
+	brushed();
+
+}
+
+//check to see if new data arrived on 3 sec intervals
+setInterval(function() {
+	var curlen = currentdata.length;
+	var lastdate = formater(currentdata[curlen-1].time)
+	//console.log("last date1: " + formater(currentdata[curlen-1].time));
+	
+	d3.json("getdata_date.php?time="+lastdate, function(error, data){
+		
+		var newlen = Object.keys(data).length;
+		
+		if(newlen>0) { 
+			//console.log("last date: " + formater(currentdata[curlen-1].time));
+			//console.log("new data len: " + newlen)
+			data.forEach(function(d) {					
+				d.time = parseDate(d.time);			
+				d.voltval = -+d.voltval;				
+				d.temp1 = +d.temp1;
+				d.currentval = (+d.currentval)*10;
+				d.laserint = +d.laserint;
+				d.lasersn = +d.lasersn;
+				//console.log("new time: " + d.time)
+				if(d.time > currentdata[curlen-1].time) {
+					if(curlen + newlen > max_elements) {
+						currentdata.shift();
+					}
+					currentdata.push(d);
+					//console.log("adding new time point: " + d.time);
+				}
+			});
+			
+			console.log("new len: " + currentdata.length);
+			console.log("new last date: " + currentdata[currentdata.length-1].time + "\n");
+		dataUpdate(currentdata);
+		
+		}
+		
+	});
+
+	
+	
+}, 3000);
+
+//change the time window when the zoom context brush is changed
+function brushed() {
+  	//if(brush.extent() != x.domain()) {
+		//console.log(brush.extent()[1] - brush.extent()[0]);
+  	//}
+	var thextent = brush.empty() ? x2.domain() : brush.extent()
+	//console.log("ex0" + thextent[0]);
+	var binned_data = binData(currentdata,max_elements_disp,thextent[0],thextent[1]);
+	cur_bindata = binned_data;
+
+	var curlen = binned_data.length;
+	x.domain([binned_data[0].time,binned_data[curlen-1].time]);
+	x3.domain(x.domain());
+  	x4.domain(x.domain());
+	y3.domain([d3.min(binned_data, function(d) { return d.temp1; }) - 1, d3.max(binned_data, function(d) { return d.temp1; }) + 1]);
+	//y4.domain([d3.min(binned_data, function(d) { return d.laserint; }), d3.max(binned_data, function(d) { return d.laserint; }) + 0.4]);
+
+	
+ 	focus.select(".area").attr("d", area(binned_data));
+  	focus.select(".area_5").attr("d", area5(binned_data));
+  	focus.select(".x.axis").call(xAxis)
+  	focus3.select(".x.axis").call(xAxis3)
+  	focus3.select(".area_3").attr("d", area3(binned_data));
+  	focus4.select(".x.axis").call(xAxis4)
+  	focus4.select(".area_4").attr("d", area4(binned_data));
+  	focus4.select(".area_6").attr("d", area6(binned_data));
+
+	focus3.select(".y.axis").call(yAxis3);
+	//focus4.select(".y.axis").call(yAxis4);
+}
+
+</script>
+</body>
